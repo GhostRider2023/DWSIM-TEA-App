@@ -1,0 +1,734 @@
+{
+  "metadata": {
+    "title": "DWSIM Equipment Fixed Capital Cost (CAPEX) Dataset",
+    "purpose": "Reference dataset + correlation constants for estimating purchased and installed (bare module) equipment cost for every physical unit operation available in DWSIM, for use in a free/open DWSIM-based CAPEX estimator.",
+    "method": "Module Costing Technique (Turton et al., CAPCOST) \u2014 purchased cost as a function of a single capacity/size parameter A, escalated to an installed 'bare module' cost via material and pressure correction factors.",
+    "cost_basis_year": 2001,
+    "cost_basis_currency": "USD",
+    "cepci_reference_values": {
+      "2001": 394.3,
+      "2018": 603.1,
+      "2019": 607.5,
+      "2024_approx_annual_avg": 800,
+      "2025_approx_annual_avg": 813,
+      "note": "CEPCI publication moved behind a paid subscription after August 2024; the 2024/2025 figures above are approximate annual averages reported in secondary sources, not the exact published index. Always re-check the current value before relying on an escalated cost \u2014 see README.md for where to look it up. Escalate cost with: Cost_new = Cost_2001 * (CEPCI_new / 394.3)."
+    },
+    "version": "1.0",
+    "last_updated": "2026-06-18"
+  },
+  "formulas": {
+    "1_purchased_cost": {
+      "description": "Purchased equipment cost at ambient pressure and carbon-steel construction, Cp0, as a function of capacity/size parameter A.",
+      "equation": "log10(Cp0) = K1 + K2*log10(A) + K3*[log10(A)]^2",
+      "out_of_range_rule": "If A falls outside [Amin, Amax], do NOT trust the polynomial directly. Evaluate Cp0 at the nearest bound (Amin or Amax), then scale exponentially: Cp0(A) = Cp0(Abound) * (A / Abound)^n, using the 'n' exponent given for that equipment type. Always log a warning when this happens \u2014 it means you are extrapolating outside the correlation's validated range."
+    },
+    "2_bare_module_factor_standard": {
+      "description": "Applies to pumps, heat exchangers, vessels/towers and trays.",
+      "equation": "FBM = max(1, B1 + B2 * FM * FP)",
+      "FM": "Material factor (dimensionless, relative to carbon steel = 1.0; from material_factors table).",
+      "FP": "Pressure factor (dimensionless, =1 at/near ambient pressure; from pressure_factor_correlations, except vessels which use a dedicated thickness-based formula \u2014 see '3_vessel_pressure_factor')."
+    },
+    "3_vessel_pressure_factor": {
+      "description": "Vessels/towers do not use the C1/C2/C3 polynomial. FP is derived from the required shell thickness, which itself depends on design pressure and diameter.",
+      "equation_vacuum": "If design pressure Pd < -0.5 barg (vacuum service): FP = 1.25",
+      "equation_thin_shell": "If Pd >= -0.5 barg and computed shell thickness ts < 0.25 in (the universal minimum allowable thickness): FP = 1.0",
+      "equation_general": "Otherwise: FP = max(1, ( ((Pd+1)*D / (2*(850 - 0.6*(Pd+1))) + 0.00315) / 0.0063 ))",
+      "units": "Pd in barg, D = internal diameter in metres. This reproduces the shell-thickness-based pressure factor used by the CAPCOST method; if you already compute mechanical wall thickness elsewhere in your sizing code, you can substitute that thickness directly."
+    },
+    "4_ancillary_pressure_factor": {
+      "description": "Applies to pumps and heat exchangers (anything that is not a vessel).",
+      "equation": "FP = max(1, 10^(C1 + C2*log10(P) + C3*[log10(P)]^2) )",
+      "units": "P = gauge pressure in barg. Valid only within [Pmin, Pmax]; outside that range, clip to the nearest bound before evaluating (same extrapolation caution as the purchased-cost formula)."
+    },
+    "5_bare_module_cost": {
+      "equation": "CBM = Cp0 * FBM",
+      "description": "Installed cost of one piece of equipment, including direct materials (piping, concrete, steel, insulation) and labour for that item, but not contingency/fee or auxiliary/offsite facilities."
+    },
+    "6_total_module_cost": {
+      "equation": "C_TM = 1.18 * sum(CBM_i)",
+      "description": "Adds 18% for contractor's contingency and fee on top of the summed bare module costs of every piece of equipment in the flowsheet. Appropriate for a brownfield/retrofit project where general site facilities already exist."
+    },
+    "7_grassroots_cost": {
+      "equation": "C_GR = C_TM + 0.35 * sum(Cp0_i)",
+      "description": "Adds an allowance for auxiliary/offsite facilities (new roads, land, utility supply, administration buildings, etc.) for a brand-new ('grassroots') plant, sized as a fraction of the SUM of all purchased equipment costs at base (ambient/CS) conditions. NOTE: Turton's published constant is 0.35 in current editions (older sources circulate 0.50 \u2014 if your reference uses 0.50, that is also defensible, just be internally consistent and state which you used)."
+    },
+    "8_tray_quantity_factor": {
+      "description": "Distillation/absorption column trays are costed per tray (by tray area) and then multiplied by the number of trays AND a quantity discount factor Fq, since the K1/K2/K3 correlation already represents a 'per unit' cost that doesn't fall fast enough for very tall columns.",
+      "equation": "Fq = 1.0  if Nt >= 20 ;  Fq = 2.25 / (1.0414^Nt)  if Nt < 20",
+      "total_tray_cost": "Cp0_trays_total = Cp0_one_tray * Nt * Fq",
+      "confidence": "medium \u2014 double check the exact Fq constants (2.25, 1.0414) against your specific edition of Turton before relying on it for a large number of trays."
+    },
+    "9_escalation": {
+      "equation": "Cost_target_year = Cost_2001 * (CEPCI_target_year / 394.3)",
+      "description": "All K1/K2/K3 correlations below return cost in 2001 USD. Escalate to the present using the current CEPCI (see metadata.cepci_reference_values)."
+    }
+  },
+  "equipment_categories": {
+    "pump": {
+      "capacity_parameter": "Shaft/brake power, kW (DWSIM: Pump 'Power Required')",
+      "bare_module_method": "standard",
+      "types": {
+        "centrifugal": {
+          "cost": {
+            "K1": 3.3892,
+            "K2": 0.0536,
+            "K3": 0.1538,
+            "Amin": 1,
+            "Amax": 300,
+            "n": 0.67,
+            "unit": "kW"
+          },
+          "pressure_factor": {
+            "C1": -0.3935,
+            "C2": 0.3957,
+            "C3": -0.00226,
+            "Pmin_barg": 10,
+            "Pmax_barg": 100
+          },
+          "bare_module": {
+            "B1": 1.89,
+            "B2": 1.35
+          },
+          "material_factor": {
+            "Fe_cast_iron": 1.0,
+            "CS_carbon_steel": 1.6,
+            "SS_stainless_steel": 2.3,
+            "Ni_nickel_alloy": 4.4
+          }
+        },
+        "reciprocating": {
+          "cost": {
+            "K1": 3.8696,
+            "K2": 0.3161,
+            "K3": 0.122,
+            "Amin": 0.1,
+            "Amax": 200,
+            "n": 0.6,
+            "unit": "kW"
+          },
+          "pressure_factor": {
+            "C1": -0.245382,
+            "C2": 0.259016,
+            "C3": -0.01363,
+            "Pmin_barg": 10,
+            "Pmax_barg": 100
+          },
+          "bare_module": {
+            "B1": 1.89,
+            "B2": 1.35
+          },
+          "material_factor": {
+            "Fe_cast_iron": 1.0,
+            "CS_carbon_steel": 1.5,
+            "SS_stainless_steel": 2.4,
+            "Ni_nickel_alloy": 4.0,
+            "Ti_titanium": 6.5
+          }
+        },
+        "positive_displacement_rotary": {
+          "cost": {
+            "K1": 3.4771,
+            "K2": 0.135,
+            "K3": 0.1438,
+            "Amin": 1,
+            "Amax": 100,
+            "n": 0.6,
+            "unit": "kW"
+          },
+          "pressure_factor": {
+            "C1": -0.245382,
+            "C2": 0.259016,
+            "C3": -0.01363,
+            "Pmin_barg": 10,
+            "Pmax_barg": 100
+          },
+          "bare_module": {
+            "B1": 1.89,
+            "B2": 1.35
+          },
+          "material_factor": {
+            "Fe_cast_iron": 1.0,
+            "CS_carbon_steel": 1.4,
+            "SS_stainless_steel": 2.7,
+            "Ni_nickel_alloy": 4.7,
+            "Ti_titanium": 10.7
+          }
+        }
+      },
+      "notes": "Driver (electric motor) cost is bundled into this correlation; do not cost a separate motor on top of the pump unless you are deliberately doing a detailed (not conceptual) estimate."
+    },
+    "compressor": {
+      "capacity_parameter": "Shaft/brake power, kW (DWSIM: Compressor 'Power Required')",
+      "bare_module_method": "material_lookup_pressure_independent",
+      "types": {
+        "centrifugal": {
+          "cost": {
+            "K1": 2.2897,
+            "K2": 1.3604,
+            "K3": -0.1027,
+            "Amin": 450,
+            "Amax": 3000,
+            "n": 0.67,
+            "unit": "kW"
+          },
+          "bare_module_factor_by_material": {
+            "CS_carbon_steel": 2.8,
+            "SS_stainless_steel": 5.8,
+            "Ni_nickel_alloy": 11.5
+          }
+        },
+        "axial": {
+          "cost": {
+            "K1": 2.2897,
+            "K2": 1.3604,
+            "K3": -0.1027,
+            "Amin": 450,
+            "Amax": 3000,
+            "n": 0.67,
+            "unit": "kW"
+          },
+          "bare_module_factor_by_material": {
+            "CS_carbon_steel": 3.8,
+            "SS_stainless_steel": 8.0,
+            "Ni_nickel_alloy": 15.9
+          }
+        },
+        "reciprocating": {
+          "cost": {
+            "K1": 2.2897,
+            "K2": 1.3604,
+            "K3": -0.1027,
+            "Amin": 450,
+            "Amax": 3000,
+            "n": 0.84,
+            "unit": "kW"
+          },
+          "bare_module_factor_by_material": {
+            "CS_carbon_steel": 3.4,
+            "SS_stainless_steel": 7.0,
+            "Ni_nickel_alloy": 13.9
+          }
+        },
+        "rotary": {
+          "cost": {
+            "K1": 5.0355,
+            "K2": -1.8002,
+            "K3": 0.8253,
+            "Amin": 18,
+            "Amax": 950,
+            "n": 0.6,
+            "unit": "kW"
+          },
+          "bare_module_factor_by_material": {
+            "CS_carbon_steel": 2.4,
+            "SS_stainless_steel": 5.0,
+            "Ni_nickel_alloy": 9.9
+          }
+        }
+      },
+      "notes": "Turton's compressor correlation already includes the driver in the purchased cost, and treats the bare module factor as a flat, pressure-independent lookup by material (NOT the generic B1+B2*FM*FP formula). Map DWSIM's Compressor object using 'Power Required' (kW) as A. DWSIM's Expander object is the reverse machine and is costed separately under 'turbine' below."
+    },
+    "turbine_expander": {
+      "capacity_parameter": "Shaft power output, kW (DWSIM: Expander 'Power Generated/Required')",
+      "bare_module_method": "material_lookup_pressure_independent",
+      "types": {
+        "axial_gas_turbine_expander": {
+          "cost": {
+            "K1": 2.7051,
+            "K2": 1.4398,
+            "K3": -0.1776,
+            "Amin": 100,
+            "Amax": 4000,
+            "n": 0.62,
+            "unit": "kW"
+          },
+          "bare_module_factor_by_material": {
+            "CS_carbon_steel": 3.5,
+            "SS_stainless_steel": 6.1,
+            "Ni_nickel_alloy": 11.7
+          },
+          "confidence": "medium \u2014 K1/K2/K3 corroborated against two independent secondary sources quoting Turton; the bare-module-factor-by-material figures are a literature-typical estimate scaled from the compressor pattern, not independently re-verified against the primary table. Amin/Amax/n are reasonable estimates, not independently confirmed \u2014 verify before using outside the 100-4000 kW range."
+        }
+      },
+      "notes": "Used for DWSIM's 'Expander' unit operation (turbo-expander / gas or steam turbine). If your expander is a small reciprocating or screw-type unit instead, the compressor reciprocating/rotary correlation run 'in reverse' (still sized on kW) is a closer analogy."
+    },
+    "heat_exchanger": {
+      "capacity_parameter": "Heat transfer area, m^2 (A = Q / (U * LMTD); see README for how to get A from a DWSIM Heater/Cooler that only reports duty Q).",
+      "bare_module_method": "standard",
+      "types": {
+        "fixed_tube_sheet": {
+          "cost": {
+            "K1": 4.3247,
+            "K2": -0.303,
+            "K3": 0.1634,
+            "Amin": 10,
+            "Amax": 1000,
+            "n": 0.62,
+            "unit": "m2"
+          },
+          "pressure_factor": {
+            "C1": 0.03881,
+            "C2": -0.11272,
+            "C3": 0.08183,
+            "Pmin_barg": 5,
+            "Pmax_barg": 140
+          },
+          "bare_module": {
+            "B1": 1.63,
+            "B2": 1.66
+          }
+        },
+        "u_tube": {
+          "cost": {
+            "K1": 4.1884,
+            "K2": -0.2503,
+            "K3": 0.1974,
+            "Amin": 10,
+            "Amax": 1000,
+            "n": 0.53,
+            "unit": "m2"
+          },
+          "pressure_factor": {
+            "C1": 0.03881,
+            "C2": -0.11272,
+            "C3": 0.08183,
+            "Pmin_barg": 5,
+            "Pmax_barg": 140
+          },
+          "bare_module": {
+            "B1": 1.63,
+            "B2": 1.66
+          }
+        },
+        "kettle_reboiler": {
+          "cost": {
+            "K1": 4.4646,
+            "K2": -0.5277,
+            "K3": 0.3955,
+            "Amin": 10,
+            "Amax": 1000,
+            "n": 0.59,
+            "unit": "m2"
+          },
+          "pressure_factor": {
+            "C1": 0.03881,
+            "C2": -0.11272,
+            "C3": 0.08183,
+            "Pmin_barg": 5,
+            "Pmax_barg": 140
+          },
+          "bare_module": {
+            "B1": 1.63,
+            "B2": 1.66
+          }
+        },
+        "double_pipe": {
+          "cost": {
+            "K1": 3.3444,
+            "K2": 0.2745,
+            "K3": -0.0472,
+            "Amin": 1,
+            "Amax": 10,
+            "n": 0.59,
+            "unit": "m2"
+          },
+          "pressure_factor": {
+            "C1": 0.6072,
+            "C2": -0.912,
+            "C3": 0.3327,
+            "Pmin_barg": 40,
+            "Pmax_barg": 100
+          },
+          "bare_module": {
+            "B1": 1.74,
+            "B2": 1.55
+          }
+        },
+        "multiple_pipe": {
+          "cost": {
+            "K1": 2.7652,
+            "K2": 0.7282,
+            "K3": 0.0783,
+            "Amin": 10,
+            "Amax": 100,
+            "n": 0.6,
+            "unit": "m2"
+          },
+          "pressure_factor": {
+            "C1": 0.6072,
+            "C2": -0.912,
+            "C3": 0.3327,
+            "Pmin_barg": 40,
+            "Pmax_barg": 100
+          },
+          "bare_module": {
+            "B1": 1.74,
+            "B2": 1.55
+          }
+        }
+      },
+      "material_factor_combinations": {
+        "applies_to": [
+          "fixed_tube_sheet",
+          "u_tube",
+          "kettle_reboiler",
+          "double_pipe",
+          "multiple_pipe"
+        ],
+        "format": "shell_material/tube_material",
+        "values": {
+          "CS/CS": 1.0,
+          "CS/SS": 1.8,
+          "SS/SS": 2.9,
+          "CS/Ni": 2.8,
+          "Ni/Ni": 3.8,
+          "CS/Ti": 4.6,
+          "Ti/Ti": 11.4
+        },
+        "note": "Shell/tube order does not matter for the factor value (CS/SS == SS/CS)."
+      },
+      "notes": "DWSIM's 'Heater' and 'Cooler' objects only report a duty Q (kW) and outlet conditions, not a physical area \u2014 treat them as a single-stream-side heat exchanger against a utility (steam/hot oil for Heater, cooling water/refrigerant for Cooler), pick a representative overall U from a standard table (e.g. 500-1500 W/m2K for water-to-liquid duties, 30-300 for gas duties), compute LMTD from the known process-side T's and an assumed utility supply/return T, then A = Q/(U*LMTD). Use 'fixed_tube_sheet' as the default type unless the user specifies otherwise. For very high-temperature process heating (Heater outlet > ~250-300 C with a large duty, i.e. acting like a process furnace rather than a utility exchanger), the heat-exchanger correlation under-costs the equipment \u2014 see 'equipment_without_verified_turton_correlation' for the fired-heater case."
+    },
+    "vessel": {
+      "capacity_parameter": "Internal volume, m^3",
+      "bare_module_method": "standard_with_vessel_pressure_factor",
+      "types": {
+        "horizontal": {
+          "cost": {
+            "K1": 3.5565,
+            "K2": 0.3776,
+            "K3": 0.0905,
+            "Amin": 0.1,
+            "Amax": 628,
+            "n": 0.5,
+            "unit": "m3"
+          },
+          "bare_module": {
+            "B1": 1.49,
+            "B2": 1.52
+          }
+        },
+        "vertical": {
+          "cost": {
+            "K1": 3.4974,
+            "K2": 0.4485,
+            "K3": 0.1074,
+            "Amin": 0.3,
+            "Amax": 520,
+            "n": 0.6,
+            "unit": "m3"
+          },
+          "bare_module": {
+            "B1": 2.25,
+            "B2": 1.82
+          }
+        }
+      },
+      "material_factor": {
+        "CS_carbon_steel": 1.0,
+        "SS_stainless_steel": 3.1,
+        "Ni_nickel_alloy": 7.1,
+        "Ti_titanium": 9.4
+      },
+      "notes": "Use 'horizontal' for horizontal flash drums / 3-phase separators and atmospheric horizontal storage tanks; use 'vertical' for vertical separators, distillation/absorption column shells, and reactor vessels (CSTR/PFR/conversion/equilibrium/Gibbs). For an atmospheric storage tank, set design pressure Pd = 0 barg (or slightly above for relief margin) so the vessel pressure factor formula correctly returns FP = 1.0."
+    },
+    "tray": {
+      "capacity_parameter": "Tray active/cross-sectional area, m^2 (cost is PER TRAY \u2014 multiply by tray count and the quantity factor Fq, see formulas.8_tray_quantity_factor)",
+      "bare_module_method": "FBM_equals_material_factor",
+      "types": {
+        "sieve": {
+          "cost": {
+            "K1": 2.9949,
+            "K2": 0.4465,
+            "K3": 0.3961,
+            "Amin": 0.7,
+            "Amax": 12.3,
+            "n": 0.86,
+            "unit": "m2"
+          },
+          "material_factor": {
+            "CS_carbon_steel": 1.0,
+            "SS_stainless_steel": 1.8,
+            "Ni_nickel_alloy": 5.6
+          }
+        },
+        "valve": {
+          "cost": {
+            "K1": 3.3322,
+            "K2": 0.4838,
+            "K3": 0.3434,
+            "Amin": 0.7,
+            "Amax": 10.5,
+            "n": 1.0,
+            "unit": "m2"
+          },
+          "material_factor": {
+            "CS_carbon_steel": 1.0,
+            "SS_stainless_steel": 1.8,
+            "Ni_nickel_alloy": 5.6
+          }
+        },
+        "demister": {
+          "cost": {
+            "K1": 3.2353,
+            "K2": 0.4838,
+            "K3": 0.3434,
+            "Amin": 0.7,
+            "Amax": 10.5,
+            "n": 1.0,
+            "unit": "m2"
+          },
+          "material_factor": {
+            "SS_stainless_steel": 1.0,
+            "FC_fluorocarbon": 1.8,
+            "Ni_nickel_alloy": 5.6
+          }
+        }
+      },
+      "notes": "FBM for trays = the material factor directly (no B1/B2/FP needed). Bare module cost for the complete tray section = Cp0_one_tray * FM * Nt * Fq, where Nt is the number of trays from DWSIM's column results (or shortcut column N stages). Packed columns are not separately covered here \u2014 see 'equipment_without_verified_turton_correlation'."
+    },
+    "agitator": {
+      "capacity_parameter": "Agitator/mixer shaft power, kW",
+      "bare_module_method": "constant",
+      "types": {
+        "impeller": {
+          "cost": {
+            "K1": 3.8511,
+            "K2": 0.7009,
+            "K3": -0.0003,
+            "Amin": 5,
+            "Amax": 150,
+            "n": 0.6,
+            "unit": "kW"
+          }
+        },
+        "propeller": {
+          "cost": {
+            "K1": 4.3207,
+            "K2": 0.0359,
+            "K3": 0.1346,
+            "Amin": 5,
+            "Amax": 500,
+            "n": 0.5,
+            "unit": "kW"
+          }
+        },
+        "turbine": {
+          "cost": {
+            "K1": 3.4092,
+            "K2": 0.4896,
+            "K3": 0.003,
+            "Amin": 5,
+            "Amax": 150,
+            "n": 0.3,
+            "unit": "kW"
+          }
+        }
+      },
+      "bare_module_factor_constant": 1.38,
+      "notes": "This is the in-vessel agitator/impeller (e.g. a CSTR's stirrer), NOT DWSIM's 'Mixer' logical stream-combiner object \u2014 see non_equipment_dwsim_objects. Add this cost ON TOP OF the vessel cost for any agitated reactor or mixing tank. Bare module factor is a flat 1.38 regardless of material in Turton's table."
+    }
+  },
+  "dwsim_object_mapping": [
+    {
+      "dwsim_object": "Pump",
+      "cost_category": "pump",
+      "cost_type": "centrifugal (default) / reciprocating / positive_displacement_rotary",
+      "size_variable_in_dwsim": "Power Required (kW)",
+      "notes": "Pick the pump 'type' field that matches the service; default to centrifugal if unspecified, since it covers the vast majority of process pumps."
+    },
+    {
+      "dwsim_object": "Compressor",
+      "cost_category": "compressor",
+      "cost_type": "centrifugal (default) / axial / reciprocating / rotary",
+      "size_variable_in_dwsim": "Power Required (kW)",
+      "notes": "Centrifugal is the default for continuous gas compression; use reciprocating for high-pressure-ratio, low-flow duties."
+    },
+    {
+      "dwsim_object": "Expander",
+      "cost_category": "turbine_expander",
+      "cost_type": "axial_gas_turbine_expander",
+      "size_variable_in_dwsim": "Power Generated (kW)",
+      "notes": null
+    },
+    {
+      "dwsim_object": "Heater",
+      "cost_category": "heat_exchanger",
+      "cost_type": "fixed_tube_sheet (default)",
+      "size_variable_in_dwsim": "Heat Added / Duty (kW) -> convert to area, see heat_exchanger.notes",
+      "notes": "Use 'fired_heater' approximate scaling instead (see equipment_without_verified_turton_correlation) if outlet temperature / duty indicates a process furnace rather than a utility exchanger."
+    },
+    {
+      "dwsim_object": "Cooler",
+      "cost_category": "heat_exchanger",
+      "cost_type": "fixed_tube_sheet (default)",
+      "size_variable_in_dwsim": "Heat Removed / Duty (kW) -> convert to area, see heat_exchanger.notes",
+      "notes": null
+    },
+    {
+      "dwsim_object": "Heat Exchanger (general / shell & tube / plate)",
+      "cost_category": "heat_exchanger",
+      "cost_type": "fixed_tube_sheet / u_tube / kettle_reboiler / double_pipe / multiple_pipe",
+      "size_variable_in_dwsim": "Calculated heat transfer area (m2), or UA and LMTD to back into area",
+      "notes": "Map DWSIM's plate-and-frame HX to 'multiple_pipe' as the closest available correlation if no dedicated plate-HX correlation is added later."
+    },
+    {
+      "dwsim_object": "Valve",
+      "cost_category": "not_separately_costed",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "Conceptual-estimate practice is to fold control/block valve cost into the piping & instrumentation allowance (commonly 20-40% of total bare module cost) rather than cost each valve individually. Cost individually only if doing a detailed estimate with vendor quotes."
+    },
+    {
+      "dwsim_object": "Pipe Segment / Pipe Network",
+      "cost_category": "not_separately_costed",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "Piping is conventionally estimated as a percentage of purchased equipment cost (commonly 20-30% for fluid processes) rather than via a K1/K2/K3 correlation, because cost depends on plant layout/routing, not just diameter and length. If you want a length-based estimate anyway, use a $/m-by-nominal-diameter table from a vendor or cost-data handbook."
+    },
+    {
+      "dwsim_object": "Orifice Plate",
+      "cost_category": "not_separately_costed",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "Instrumentation item; fold into the instrumentation cost allowance (commonly 5-15% of total bare module cost) rather than costing individually."
+    },
+    {
+      "dwsim_object": "Separator Vessel (2-phase flash drum)",
+      "cost_category": "vessel",
+      "cost_type": "horizontal or vertical (per your L/D orientation choice)",
+      "size_variable_in_dwsim": "Calculated vessel volume (m3) from flowsheet vapour/liquid flow + chosen residence time and L/D ratio",
+      "notes": "DWSIM does not size the physical vessel itself \u2014 you must size the vessel (diameter, length, volume) from the converged stream flows using a residence-time/settling-velocity method (e.g. Souders-Brown for vapour-liquid), then feed the resulting volume into the vessel correlation."
+    },
+    {
+      "dwsim_object": "Three-Phase Separator",
+      "cost_category": "vessel",
+      "cost_type": "horizontal (typical)",
+      "size_variable_in_dwsim": "Calculated vessel volume (m3) \u2014 size as above, with boot volume for the second liquid phase added to the main volume",
+      "notes": null
+    },
+    {
+      "dwsim_object": "Tank",
+      "cost_category": "vessel",
+      "cost_type": "vertical (typical for atmospheric storage) or horizontal",
+      "size_variable_in_dwsim": "Volume (m3) from tank dimensions; set design pressure ~0 barg",
+      "notes": null
+    },
+    {
+      "dwsim_object": "Distillation Column (rigorous) / Shortcut Column",
+      "cost_category": "vessel (shell) + tray (internals)",
+      "cost_type": "vertical vessel + sieve or valve trays",
+      "size_variable_in_dwsim": "Shell: volume from calculated diameter x (Nt x tray spacing + disengagement allowance). Trays: tray area from diameter, Nt = number of stages from the converged column (or Fenske-Underwood-Gilliland N for the shortcut column).",
+      "notes": "Condenser and reboiler are normally separate DWSIM Cooler/Heater (or dedicated HX) objects in the flowsheet \u2014 cost them under 'heat_exchanger', not as part of the column itself, to avoid double counting. A kettle reboiler should use the 'kettle_reboiler' heat-exchanger type."
+    },
+    {
+      "dwsim_object": "Simple / Refluxed / Reboiled Absorber",
+      "cost_category": "vessel (shell) + tray (internals)",
+      "cost_type": "vertical vessel + sieve or valve trays",
+      "size_variable_in_dwsim": "Same approach as Distillation Column above",
+      "notes": null
+    },
+    {
+      "dwsim_object": "Conversion Reactor / Equilibrium Reactor / Gibbs Reactor",
+      "cost_category": "vessel",
+      "cost_type": "vertical (typical)",
+      "size_variable_in_dwsim": "Volume (m3) from assumed/specified residence time x volumetric throughput (DWSIM does not size these reactors mechanically \u2014 you must assume a residence time appropriate to the reaction)",
+      "notes": "Add 'agitator' cost on top if the reactor is mechanically stirred (typical for liquid-phase CSTR-type duty); omit it for a reactor representing a fixed/packed bed or simple holding vessel."
+    },
+    {
+      "dwsim_object": "CSTR",
+      "cost_category": "vessel + agitator",
+      "cost_type": "vertical vessel + turbine or impeller agitator",
+      "size_variable_in_dwsim": "Vessel: Volume (m3) from specified residence time. Agitator: shaft power (kW) from an assumed power-per-unit-volume (commonly 0.5-3 kW/m3 for liquid blending/suspension duty \u2014 DWSIM does not calculate this directly).",
+      "notes": null
+    },
+    {
+      "dwsim_object": "PFR (Plug Flow Reactor)",
+      "cost_category": "vessel OR heat_exchanger(multiple_pipe)",
+      "cost_type": "depends on construction",
+      "size_variable_in_dwsim": "If modelled as a single large vessel: Volume (m3) directly from the reactor specification. If modelled as a jacketed/multitubular reactor needing close temperature control: cost as a 'multiple_pipe' heat exchanger using the total tube-side area instead.",
+      "notes": "Choose based on what the PFR physically represents in your process, not the DWSIM model type."
+    },
+    {
+      "dwsim_object": "Mixer (stream combiner)",
+      "cost_category": "not_separately_costed",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "This is a flow-combining logic block (a pipe tee in reality), not the agitator/impeller equipment category above. Negligible standalone capital cost."
+    },
+    {
+      "dwsim_object": "Splitter",
+      "cost_category": "not_separately_costed",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "Flow-splitting logic block; negligible standalone capital cost."
+    },
+    {
+      "dwsim_object": "Component Separator",
+      "cost_category": "depends_on_real_equipment_represented",
+      "cost_type": null,
+      "size_variable_in_dwsim": null,
+      "notes": "This is an idealised mass-balance shortcut (you specify split fractions directly) rather than a rate-based model of a real machine. It has no inherent cost correlation \u2014 decide what real equipment it is standing in for (e.g. a membrane unit, an absorber, a partial condenser) and cost THAT instead."
+    },
+    {
+      "dwsim_object": "Solids Separator",
+      "cost_category": "see equipment_without_verified_turton_correlation",
+      "cost_type": "cyclone / filter / centrifuge",
+      "size_variable_in_dwsim": "Solids mass flow (kg/h) or gas/liquid volumetric flow depending on the real equipment represented",
+      "notes": "Like Component Separator, this is an idealised solids/liquid split. Identify the real solid-liquid (or solid-gas) separation device intended (cyclone, hydrocyclone, centrifuge, filter) and use the corresponding approximate correlation."
+    },
+    {
+      "dwsim_object": "Continuous Cake Filter",
+      "cost_category": "see equipment_without_verified_turton_correlation",
+      "cost_type": "rotary vacuum / pressure filter",
+      "size_variable_in_dwsim": "Filtration area (m2)",
+      "notes": null
+    }
+  ],
+  "non_equipment_dwsim_objects": [
+    "Material Stream",
+    "Energy Stream",
+    "Recycle",
+    "Adjust",
+    "Specification / Set",
+    "Spreadsheet",
+    "Custom Unit Operation (IronPython/IronRuby/VBScript/JScript)",
+    "CAPE-OPEN Socket",
+    "Energy Recycle",
+    "Logical blocks in general (controllers, balances, comments)"
+  ],
+  "equipment_without_verified_turton_correlation": [
+    {
+      "equipment": "Fired heater / process furnace",
+      "size_parameter": "Absorbed heat duty, kW (or MM Btu/hr)",
+      "approach": "Use a generic exponential scaling rule C2 = C1 * (S2/S1)^n with a known reference cost C1 at a reference duty S1 (from a vendor budget quote or a published cost-data handbook such as Woods' 'Rules of Thumb in Engineering Practice' or Peters, Timmerhaus & West), with a typical cost exponent n in the range 0.7-0.85 for fired heaters.",
+      "confidence": "low-to-medium \u2014 no specific K1/K2/K3 triplet from Turton's table is reproduced here; do not present this as a Turton-verified correlation in your tool's documentation."
+    },
+    {
+      "equipment": "Cyclone / hydrocyclone separator",
+      "size_parameter": "Inlet gas or slurry volumetric flow, m3/h",
+      "approach": "Generic exponential scaling rule, n typically 0.5-0.65; calibrate against a vendor quote where possible.",
+      "confidence": "low \u2014 placeholder methodology only."
+    },
+    {
+      "equipment": "Centrifuge",
+      "size_parameter": "Bowl/basket volume or solids throughput, depending on type",
+      "approach": "No generic correlation included; centrifuge cost is strongly type- and duty-dependent (decanter vs. basket vs. disc-stack) \u2014 recommend a vendor budget quote.",
+      "confidence": "not provided"
+    },
+    {
+      "equipment": "Filter (continuous cake / rotary vacuum / pressure leaf)",
+      "size_parameter": "Filtration area, m2",
+      "approach": "Generic exponential scaling rule, n typically 0.55-0.65.",
+      "confidence": "low \u2014 placeholder methodology only."
+    },
+    {
+      "equipment": "Packed column internals (random or structured packing)",
+      "size_parameter": "Packed volume, m3, or packing surface area",
+      "approach": "Cost per m3 of packing from a vendor/handbook ($/m3 varies hugely by packing material and type \u2014 metal vs. plastic vs. ceramic, random vs. structured), multiplied by packed volume; not covered by the tray correlation above.",
+      "confidence": "not provided \u2014 tray correlation above is for trayed columns only."
+    }
+  ],
+  "non_equipment_dwsim_objects_note": "These are calculation/logic constructs in the flowsheet, not physical plant items, and carry no direct equipment cost. Exclude them from the equipment list passed into the cost calculator.",
+  "equipment_without_verified_turton_correlation_note": "These items are intentionally left without fabricated K1/K2/K3 numbers, because no verified primary-source figure was available at compile time. Presenting an invented-looking precise correlation here would undermine the accuracy goal of this dataset more than leaving it as a flagged gap."
+}
