@@ -1,6 +1,6 @@
 # DWSIM TEA App — Equipment Cost Estimator
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dwsim-tea-app.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dwsim-tea-app-w4iyzufsdbvsftseruasto.streamlit.app/)
 
 ## 📌 Overview
 
