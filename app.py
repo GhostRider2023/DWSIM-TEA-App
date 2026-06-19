@@ -551,7 +551,7 @@ st.markdown("""
 st.markdown('<div class="section-header">📂 Upload DWSIM File</div>',
             unsafe_allow_html=True)
 
-sample_path = Path(__file__).parent / "DWSIM_Costing_Introspection.xlsx"
+sample_path = Path(__file__).parent / "introspection.xlsx"
 
 # Two-tab upload interface: DWSIM file OR introspection Excel
 up_tab1, up_tab2 = st.tabs(["🧪 Upload DWSIM Flowsheet (.dwxmz)", "📊 Upload Introspection Excel (.xlsx)"])
@@ -643,7 +643,7 @@ with up_tab2:
     with col_up2:
         if sample_path.exists():
             if st.button("📋 Load Sample File", use_container_width=True,
-                         help="Load the bundled DWSIM_Costing_Introspection.xlsx"):
+                         help="Load the bundled introspection.xlsx"):
                 with open(sample_path, "rb") as f:
                     buf_sample = io.BytesIO(f.read())
                 buf_sample.name = sample_path.name  # type: ignore[attr-defined]
