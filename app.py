@@ -551,7 +551,7 @@ st.markdown("""
 st.markdown('<div class="section-header">📂 Upload DWSIM File</div>',
             unsafe_allow_html=True)
 
-sample_path = Path(__file__).parent.parent / "DWSIM_Costing_Introspection.xlsx"
+sample_path = Path(__file__).parent / "DWSIM_Costing_Introspection.xlsx"
 
 # Two-tab upload interface: DWSIM file OR introspection Excel
 up_tab1, up_tab2 = st.tabs(["🧪 Upload DWSIM Flowsheet (.dwxmz)", "📊 Upload Introspection Excel (.xlsx)"])
@@ -576,7 +576,7 @@ with up_tab1:
                            help="Depth 2 is fast and sufficient for costing; depth 4 is thorough but slow.")
 
     if dwxmz_file is not None:
-        extractor_py = Path(__file__).parent.parent / "costing_engine_variables.py"
+        extractor_py = Path(__file__).parent / "costing_engine_variables.py"
         if not extractor_py.exists():
             st.error(f"❌ Extractor not found at `{extractor_py}`. Check your project layout.")
         else:
